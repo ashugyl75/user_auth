@@ -1,0 +1,255 @@
+# how to deploy a django app on AWS
+<!-- use simple language to explain things, do not make it complex -->
+As a DevOps engineer, it is my routine to deploy web applications on AWS. And today we are just going to do that. We are going to deploy a simple Django project on AWS. This project is a simple user management system that I created for a tutorial on medium. Here's the link to that article if you are interested: [User Management System](https://medium.com/@siddharthkumar_27778/user-management-system-in-django-2e3f3e3e3e3e)
+If you think writing code is the only thing you need to do to make a website live, then you are wrong. There are a lot of things that you need to take care of before you can make your website live. And that's what we are going to do today. We are going to take care of all the things that are required to make a website live on AWS. 
+## Prerequisites:
+- This tutorial assumes that you have a working knowledge of how websites work, including backend, frontend, and database concepts.
+- It also assumes that you have a simple project created, preferably using Django, that you want to deploy on AWS.
+- Some knowledge of AWS and EC2 instances is helpful, but we will provide a brief overview.
+- Familiarity with Linux commands would be helpful as we will be using a Linux-based AMI.
+- If you are using Windows, make sure to have Git Bash installed to run Linux commands on your system.
+
+Before we start, let's get a few jargons out of the way so it become easier for you to navigate through this tutorial:
+1. **Web Server Gateway Interface (WSGI)**: WSGI is a specification that describes how a web server communicates with web applications, such as Django. It defines a standard interface for handling web requests. You can find this in the `wsgi.py` file in your Django project.
+2. **Gunicorn**: Gunicorn is a WSGI server that is commonly used to serve Django applications in production. Basically, it is a server that will run your Django application.
+   - Systemd Service Files: These are configuration files for services that are controlled and supervised by systemd, the init system used in most Linux distributions. A service file includes information on how to start, stop, or restart a service, under what circumstances it should be automatically started, and other service-specific settings.
+
+   - Systemd Socket Files: These are special types of service files that allow for starting services on-demand when they're needed, rather than on system startup. They define network sockets or IPC (inter-process communication) sockets associated with a service. When a connection is made to the socket, systemd automatically starts the associated service to handle the connection. This can help improve system startup times and resource usage by only starting services when they're actually needed.
+3. **Virtual Environment (virtualenv)**: A virtual environment is a self-contained directory that contains a Python installation and any necessary libraries for a specific project. It helps isolate project dependencies from other Python projects. We already have a blog on how to create a virtual environment in python. You can find it here: [Creating a virtual environment in python](https://medium.com/@siddharthkumar_27778/creating-a-virtual-environment-in-python-9c6f3f3f3f3f)
+4. **Amazon EC2**: Amazon Elastic Compute Cloud (EC2) is a web service that provides resizable compute capacity in the cloud. It is designed to make web-scale cloud computing easier for developers. This is the service that we are going to use to host our Django application. It is very easy to use and is very reliable and best of all it is totally free for the first year.
+5. **Instance**: An EC2 instance is a virtual server in the AWS cloud. It can be configured with various CPU, memory, storage, and networking capacities to meet the requirements of your application. This is the server that will run our Django application.
+6. **AMI**: An Amazon Machine Image (AMI) is a template that contains the software configuration (operating system, application server, and applications) required to launch an EC2 instance. We are going to use an AMI that has Ubuntu installed on it.
+7. **Security Group**: A security group acts as a virtual firewall for your EC2 instances to control inbound and outbound traffic. You can specify which traffic is allowed to reach your instances. We are going to create a security group that will allow traffic on port 80 and 22(and 8000 for development purposes).
+8. **Key Pair**: A key pair consists of a public key and a private key. You use the private key to access your EC2 instances securely using SSH (Secure Shell). We are going to create a key pair that will allow us to connect to our EC2 instance using SSH.
+9.  **NGINX**: Nginx is a web server that can also be used as a reverse proxy, load balancer, mail proxy, and HTTP cache. We are going to use Nginx as a reverse proxy to serve our Django application.
+
+Now that we have all the jargons out of the way, let's jump right into it and learn along the way:
+## Launch EC2 Instance
+1. **Create Account:** Create an AWS account if you do not already have one. Go to [AWS](https://aws.amazon.com/) and click on "Create an AWS Account" and .
+2. **Create Instance:** Head to the services section and from there select EC2. Click on "Launch Instance".
+ ![alt text](<Pasted image 20240216131335.png>)
+3.**Requirements Specification:** Now you can name your instance anything you want. For example, I have named it `Django_Deployment`. 
+    Then continue choosing your AMI (Amazon Machine Image). I prefer Ubuntu, but you can choose any. 
+    Be careful, not all AMIs are eligible for the free tier. But Ubuntu is, so it won't be a problem for us. 
+    Then we choose the instance type, which you can choose based on your current requirement. 
+    But I will go ahead and choose `t2.micro`, which is also eligible for the free tier. 
+4. **Key Pair:** Next, we need to generate a key pair for our instance. This key pair will allow us to connect with our instance remotely. It is important to securely store this key pair as losing it will require generating a new one. However, AWS also provides a browser-based method to interact with the instance without a key pair, although it is not recommended. In this tutorial, I will show you how to generate and use a key pair.![alt text](<Pasted image 20240216132247.png>) 
+5. **Security Group:** Now select "Create Security Group" and create three Security Groups:
+    - The first is for development purposes. It will allow traffic on port 8000. We will delete this later.
+    - The second will allow you to connect to your instance remotely using SSH.
+    - The third is for anyone on the internet to access your website.
+    
+   ![alt text](image.png)
+6. **Launch Instance:** Leave all other details to default for now. Click "Launch Instance" and your first EC2 instance is created!!!.
+
+7. **Instance Dashboard:** Go back to your instances dashboard and you should see the instance there. It may take a few minutes to launch. Once it's launched, you will see a summary of your instance, including its status and other details. Something like this:
+
+    ![Instance Dashboard](<Pasted image 20240216133614.png>)
+
+## Connecting to the Instance using SSH
+To connect to the EC2 instance, follow these steps:
+
+1. Select the instance and click on "Connect" in the top-center. You will be redirected to the connection page.
+2. Here, you have two options:
+    - Connect directly through your browser window using the EC2 instance connect option.
+    - Connect using your own system's terminal window using the key file we just created. This method is more secure and convenient.
+3. If you choose to connect using SSH, go to the directory where your `.pem` file is located, open Git Bash, and run the commands shown below. (Note: the chmod command will work only on Linux distros. So you can use Git Bash to run on Windows).
+4. You should now be connected to your instance.
+
+![alt text](<Pasted image 20240216233520.png>)
+
+Now that we are connected to our instance, let's quickly prepare our instance for deployment.
+
+## Preparing the Instance for Deployment
+Before we can deploy our Django project, we need to prepare our instance for deployment. This involves installing the necessary software and configuring the environment for our project.
+If you are connected to your instance you should see something like this:
+![alt text](image-1.png)
+We are now going to install the necessary software and configure the environment for our project. So go ahead and run the following commands:
+```bash
+sudo apt update
+sudo apt install python3-pip python3-dev libpq-dev postgresql postgresql-contrib nginx
+```
+This will install Python, pip, PostgreSQL, and Nginx on your instance.
+Next we need to set up a PostgreSQL database for our project. We will create a new database and user for our project. Run the following commands to do that:
+```bash
+sudo -u postgres psql
+```
+This will open the PostgreSQL command line. Now run the following commands to create a new database for your project:
+```bash
+CREATE DATABASE user_auth; # replace user_auth with your database name
+```
+For now, we will use the default user `postgres` to connect to the database. Now exit the PostgreSQL command line by entering `\q`.
+Now we need to clone our project from GitHub. Run the following commands to clone your project into the home directory of your instance:
+```bash
+cd ~
+git clone github.com/your_username/your_project
+```
+Now we move to the project working directory and set up a virtual environment for our project. Run the following commands to do that:
+```bash
+$ cd user_auth/  # replace user_auth with your project name
+$ python3 -m venv venv
+$ source venv/bin/activate
+(venv) $ pip install --upgrade pip
+(venv) $ pip install gunicorn
+(venv) $ pip install -r requirements.txt
+```
+This will create a virtual environment for your project and install all the necessary packages for your project. Okay so far far we have installed all the necessary software and set up our project. Now we need to configure our project for the production environment.
+
+
+## Preparing the Project for Deployment
+Before deploying your Django project to AWS EC2, you need to prepare it for deployment. This involves collecting static files and ensuring that your project is configured correctly for the production environment.
+So we can either configure it directly on the server or we can configure it on our local machine and then push the changes to the server. I prefer the latter as it is more convenient and less error-prone. So let's configure our project on our local machine and then push the changes to the server.
+So in your project directory, open the `settings.py` file and make the following changes:
+```python
+DEBUG = False
+ALLOWED_HOSTS = ['your_public_ip', 'your_domain', 'localhost'] # replace your_public_ip and your_domain with your public IP and domain
+```
+you can find your server's public IP and domain in the instance dashboard. See the image below:
+![alt text](image-2.png)
+Since we are using PostgreSQL for our database, we need to add the database configuration to our `settings.py` file. Configure the following lines to your `settings.py` file:
+```python
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'user_auth', # replace user_auth with your database name
+        'USER: 'postgres', # default user in PostgreSQL
+        'PASSWORD': '12345678', # replace your_password with your database password
+        'HOST': 'localhost',
+        'PORT': '',
+    }
+}
+```
+
+To configure static files for your Django project, add the following lines to the end of your `settings.py` file:
+
+```python
+import os
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static/')
+```
+## Initial Project Setup
+Now that we have configured our project for the production environment. Push the changes from your local machine and pull them on your server. Then on your server, in the project directory run the following commands to collect static files and migrate the database:
+```bash
+python manage.py collectstatic
+python manage.py makemigrations
+python manage.py migrate
+```
+This will collect all the static files and migrate the database for your project. Now that we have done initial setup we can basically run the project on the server.
+```bash
+(venv) $ sudo ufw allow 8000
+(venv) $ python manage.py runserver 0.0.0.0:8000
+```
+You can now access your project by going to your server's public IP followed by port 8000. You should see your project running. However, this is not the ideal way to run your project in production. Django's built-in server is great for development, but it's not designed to handle production traffic. It's single-threaded, meaning it can only handle one request at a time. For handling multiple requests simultaneously in a production environment, we use a WSGI server like Gunicorn. Gunicorn creates a Unix process for each web request, ensuring slow or stuck requests don't affect the processing of other requests. Hence, we need to use Gunicorn to run our project in production. So let's do that.
+
+## Running the Project with Gunicorn
+Now we need to deactivate the virtual environment and configure Gunicorn to run our project. Run the following commands to do that:
+```bash
+(venv) $ deactivate
+```
+To automatically start the Gunicorn process on boot, we need to set up Gunicorn with systemd. This involves creating a `socket` file that listens for incoming connections and starts the Gunicorn service, as well as a `service` file that defines how the service should be started. Here's how to do that:
+```bash
+$ sudo nano /etc/systemd/system/gunicorn.socket
+```
+This will open a new file in the nano text editor. Add the following lines to the file:
+```bash
+[Unit]
+Description=gunicorn socket
+[Socket]
+ListenStream=/run/gunicorn.sock
+[Install]
+WantedBy=sockets.target
+```
+Save and close the file. Now we need to create a systemd service file so that our Gunicorn process automatically starts on boot. Run the following commands to create a systemd service file:
+```bash
+$ sudo nano /etc/systemd/system/gunicorn.service
+```
+This will again open a new file in the nano text editor. Add the following lines to the file:
+```bash
+[Unit]
+Description=gunicorn daemon
+After=network.target
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/home/ubuntu/user_auth # replace user_auth with your project name
+ExecStart=/home/ubuntu/user_auth/venv/bin/gunicorn --workers 3 --bind unix:/home/ubuntu/user_auth/user_auth.sock user_auth.wsgi:application # replace user_auth with your project name
+[Install]
+WantedBy=multi-user.target
+```
+Save and close the file. Next we need to start and enable the Gunicorn socket. Run the following commands to do that:
+```bash
+$ sudo systemctl start gunicorn.socket
+$ sudo systemctl enable gunicorn.socket
+```
+Now we need to check if the socket was started properly. Run the following command to check the status of the socket:
+```bash
+$ sudo systemctl status gunicorn.socket
+```
+If the socket was started properly, you should see something like this:
+```bash
+● gunicorn.socket - gunicorn socket
+     Loaded: loaded (/etc/systemd/system/gunicorn.socket; enabled; vendor preset: enabled)
+     Active: active (listening) since Mon 2022-02-14 12:00:00 UTC; 1min 30s ago
+   Triggers: ● gunicorn.service
+     Listen: /run/gunicorn.sock (Stream)
+      Tasks: 0 (limit: 1150)
+     Memory: 0B
+     CGroup: /system.slice/gunicorn.socket
+```
+to test socket activation, we can send a request to the socket using curl. Run the following command to do that:
+```bash
+$ curl --unix-socket /run/gunicorn.sock localhost
+```
+If the socket was activated properly, you should see the HTML content of your project. If you did see the HTML content of your project, then congratulations, you have successfully set up Gunicorn to run your project. Otherwise, go back and check if you missed any steps. You can also check logs for any errors.
+```bash
+$ sudo journalctl -u gunicorn
+```
+Resolve any errors and try again. Once you have successfully set up Gunicorn, we can move on to configuring Nginx to serve our Django application.
+
+## Configuring Nginx
+Nginx is a web server that can also be used as a reverse proxy, load balancer, mail proxy, and HTTP cache. We are going to use Nginx as a reverse proxy to serve our Django application. To do that, we need to create a new Nginx server block file. Run the following commands to do that:
+```bash
+$ sudo nano /etc/nginx/sites-available/user_auth
+```
+This will open a new file in the nano text editor. Add the following lines to the file:
+```bash
+server {
+    listen 80;
+    server_name Server_Domain or IP address; # replace your_domain with your domain
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location /static/ {
+        root /home/ubuntu/user_auth; # replace user_auth with your project name
+    }
+    location / {
+        include proxy_params;
+        proxy_pass http://unix:/run/gunicorn.sock;
+    }
+}
+```
+If this all looks a little confusing, don't worry. We are basically telling Nginx to serve our static files and pass all other requests to Gunicorn. Just replace `Server_Domain` with your server's domain or IP address and `user_auth` with your project name and copy the above lines to the file. Save and close the file. Now we need to enable the file by creating a symbolic link to the `sites-enabled` directory. Run the following commands to do that:
+```bash
+$ sudo ln -s /etc/nginx/sites-available/user_auth /etc/nginx/sites-enabled
+```
+Now we need to test our Nginx configuration for any syntax errors. Run the following command to do that:
+```bash
+$ sudo nginx -t
+```
+So now that we have successfully set up Nginx to serve our Django application, we no longer need to run our application on port 8000. We can now stop the development server and restart Nginx. Run the following commands to do that:
+```bash
+sudo systemctl restart nginx
+sudo ufw delete allow 8000
+sudo ufw allow 'Nginx Full'
+```
+Here's an improved version of the ending paragraph for your Django deployment on AWS blog:
+
+Now, you can access your project by navigating to your server's domain or IP address. Ensure to make a simple HTTP request, as we have not configured HTTPS yet. If everything was set up correctly, you should see your project up and running. However, if you encounter any issues, double-check the deployment steps to ensure nothing was missed. Additionally, reviewing the server logs can provide insights into any errors.
+
+Please note that this deployment setup is basic. In a real-world scenario, you would want to configure a domain name, set up an SSL certificate for HTTPS, and consider using a service like Amazon RDS for your database. You may also opt for a static file server like Amazon S3 to serve your static files efficiently. The purpose of this blog was to simplify the deployment process, as many developers hesitate to deploy their applications on a live server. I hope this blog has helped you overcome that hesitation.
+
+In future blogs, we will delve into setting up a domain name, configuring SSL certificates, and implementing HTTPS for your website. We will also explore setting up a database with Amazon RDS and using Amazon S3 for static file serving. Additionally, we will cover Continuous Integration and Continuous Deployment (CI/CD) pipelines. Stay tuned for more!
+
+Resources:
+- [Django Official Documentation](https://docs.djangoproject.com/)
+- [AWS Official Documentation](https://aws.amazon.com/documentation/)
+- [Nginx Official Documentation](https://nginx.org/en/docs/)
+- [Gunicorn Official Documentation](https://docs.gunicorn.org/en/stable/)
