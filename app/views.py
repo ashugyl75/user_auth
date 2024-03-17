@@ -1,14 +1,14 @@
 from django.shortcuts import render
 from django.urls import reverse_lazy
 from django.views.generic.edit import FormView
-from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.views import LoginView, LogoutView
 from django.views.generic import TemplateView
+from .forms import CustomUserCreationForm 
 
 
 class RegisterView(FormView):
     template_name = 'register.html'
-    form_class = UserCreationForm
+    form_class = CustomUserCreationForm
     success_url = reverse_lazy('login')  # name of the url where to redirect after a successful registration
 
     def form_valid(self, form):
@@ -23,8 +23,7 @@ class UserLoginView(LoginView):
 
 class UserLogoutView(LogoutView):
     next_page = 'login'  # specify the page to redirect to after logout, usually homepage
-    def get(self, request, *args, **kwargs):
-        return self.post(request, *args, **kwargs)
+
 
 
 class LoginSuccessView(TemplateView):

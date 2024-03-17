@@ -7,7 +7,6 @@ class CustomUser(AbstractUser):
     # For example, let's add a phone number field
     phone_number = models.CharField(max_length=20)
 
-    # Add any additional methods or properties as needed
     groups = models.ManyToManyField(
         'auth.Group',
         blank=True,

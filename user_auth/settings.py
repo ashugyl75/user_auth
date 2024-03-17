@@ -24,10 +24,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-)hlo00(rjicsbem-o+bqn_a6dyr*67=j7t#n@oe#&)c$s4dkn*'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-# ALLOWED_HOSTS = ['ec2-3-108-238-191.ap-south-1.compute.amazonaws.com', '3.108.238.191']
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['65.2.57.42', 'localhost']
+# ALLOWED_HOSTS = ['*']
 
 # Application definition
 
@@ -77,8 +77,12 @@ WSGI_APPLICATION = 'user_auth.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': 'user_auth',
+        'USER': 'postgres',
+        'PASSWORD': '12345678',
+        'HOST': 'localhost',
+        'PORT': '',
     }
 }
 
