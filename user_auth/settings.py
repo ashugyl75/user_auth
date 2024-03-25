@@ -77,12 +77,12 @@ WSGI_APPLICATION = 'user_auth.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'user_auth',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'test',
         'USER': 'postgres',
-        'PASSWORD': '12345678',
+        'PASSWORD': 'postgres',
         'HOST': 'localhost',
-        'PORT': '',
+        'PORT': '5432',
     }
 }
 
