@@ -19,7 +19,7 @@ jobs:
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-        
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -54,6 +54,6 @@ jobs:
         aws_secret_key: ${{ secrets.SECRET_KEY }}
         application_name: user_auth
         environment_name: Userauth-env
-        version_label: ${{ github.run_number }}
+        version_label: ${{ github.run_id }}
         region: "us-east-2"
         deployment_package: deploy.zip
